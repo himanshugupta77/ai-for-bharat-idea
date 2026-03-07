@@ -1,0 +1,248 @@
+{
+  "common": {
+    "appName": "Bharat Sahayak",
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "close": "Close",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "back": "Back",
+    "next": "Next",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "landing": {
+    "title": "Bharat Sahayak",
+    "subtitle": "Your AI-Powered Welfare Assistant",
+    "description": "Discover government welfare schemes in your language with voice assistance",
+    "cta": "Start Chatting",
+    "badge": "Official AI Portal for Government Welfare Schemes",
+    "hero": {
+      "title1": "AI-Powered Government",
+      "title2": "Welfare Assistant",
+      "subtitle": "Find the right government schemes instantly using AI, voice support, and multilingual assistance.",
+      "startChatting": "Start Chatting",
+      "exploreSchemes": "Explore Schemes"
+    },
+    "features": {
+      "title": "Powerful AI Features",
+      "subtitle": "Everything you need to discover and apply for government welfare schemes",
+      "aiChatbot": {
+        "title": "AI Chatbot",
+        "description": "Intelligent conversational AI powered by advanced language models to answer your questions about government schemes."
+      },
+      "eligibilityChecker": {
+        "title": "Smart Eligibility Checker",
+        "description": "Quickly determine which government welfare schemes you qualify for based on your personal information."
+      },
+      "voiceAssistant": {
+        "title": "Voice Assistant",
+        "description": "Speak naturally to interact with the assistant using advanced speech recognition and text-to-speech technology."
+      },
+      "multilingual": {
+        "title": "Multilingual Support",
+        "description": "Access information in your preferred language with support for 11 Indian languages and seamless translation."
+      }
+    },
+    "schemes": {
+      "title": "Popular Government Schemes",
+      "pmKisan": {
+        "name": "PM Kisan Samman Nidhi",
+        "description": "Financial assistance of ₹6,000 per year to small and marginal farmers in three equal installments. Direct income support to help farmers meet agricultural expenses.",
+        "eligibility": "For farmers with cultivable land"
+      },
+      "ayushman": {
+        "name": "Ayushman Bharat Yojana",
+        "description": "Health insurance coverage of ₹5 lakh per family per year for secondary and tertiary care hospitalization. Covers over 1,350 medical procedures including surgeries and treatments.",
+        "eligibility": "For economically vulnerable families"
+      }
+    },
+    "aiCapabilities": {
+      "title": "AI-Powered Intelligence",
+      "bedrock": {
+        "title": "Amazon Bedrock",
+        "description": "Powered by Claude 3 for intelligent, context-aware responses and scheme recommendations."
+      },
+      "translate": {
+        "title": "Amazon Translate",
+        "description": "Seamless translation across 11 languages for truly multilingual conversations."
+      },
+      "transcribe": {
+        "title": "Amazon Transcribe",
+        "description": "Accurate speech-to-text conversion with automatic language identification."
+      },
+      "polly": {
+        "title": "Amazon Polly",
+        "description": "Natural-sounding text-to-speech with gender-neutral voices for all languages."
+      }
+    },
+    "architecture": {
+      "title": "Built on AWS Serverless",
+      "subtitle": "Transparent, scalable, and secure infrastructure powered by AWS services",
+      "learnMore": "Learn More About Our Architecture",
+      "services": {
+        "lambda": "Serverless compute",
+        "apiGateway": "REST API",
+        "dynamodb": "NoSQL database",
+        "s3": "Static hosting",
+        "cloudfront": "Global CDN",
+        "bedrock": "AI models",
+        "transcribe": "Speech-to-text",
+        "polly": "Text-to-speech",
+        "translate": "Translation",
+        "cloudwatch": "Monitoring",
+        "waf": "Security",
+        "kms": "Encryption"
+      }
+    },
+    "cta": {
+      "title": "Ready to Get Started?",
+      "subtitle": "Start your journey to discover welfare schemes that can help you and your family",
+      "button": "Start Chatting Now"
+    },
+    "about": {
+      "title": "About",
+      "description": "Learn how Bharat Sahayak works"
+    }
+  },
+  "chat": {
+    "placeholder": "Type your message or use voice...",
+    "send": "Send",
+    "voiceInput": "Voice Input",
+    "listening": "Listening...",
+    "processing": "Processing...",
+    "typing": "Typing...",
+    "newChat": "New Chat",
+    "clearChat": "Clear Chat",
+    "noMessages": "Start a conversation to discover welfare schemes"
+  },
+  "schemes": {
+    "title": "Recommended Schemes",
+    "checkEligibility": "Check Eligibility",
+    "viewDetails": "View Details",
+    "applyNow": "Apply Now",
+    "officialWebsite": "Official Website",
+    "eligibility": "Eligibility",
+    "benefits": "Benefits",
+    "documents": "Required Documents",
+    "applicationSteps": "Application Steps",
+    "subtitle": "Explore popular government welfare schemes and check your eligibility",
+    "filterByCategory": "Filter by Category",
+    "allCategories": "All Schemes",
+    "noSchemes": "No schemes found in this category",
+    "category": {
+      "agriculture": "Agriculture",
+      "employment": "Employment",
+      "health": "Health",
+      "housing": "Housing",
+      "welfare": "Welfare",
+      "pension": "Pension",
+      "business": "Business",
+      "education": "Education"
+    }
+  },
+  "eligibility": {
+    "title": "Eligibility Check",
+    "form": {
+      "for": "for",
+      "additionalInfo": "Additional Information",
+      "age": "Age",
+      "gender": "Gender",
+      "selectGender": "Select Gender",
+      "male": "Male",
+      "female": "Female",
+      "other": "Other",
+      "income": "Annual Income (₹)",
+      "state": "State",
+      "selectState": "Select State",
+      "category": "Category",
+      "selectCategory": "Select Category",
+      "general": "General",
+      "obc": "OBC",
+      "sc": "SC",
+      "st": "ST",
+      "occupation": "Occupation",
+      "hasDisability": "I have a disability",
+      "isBPL": "I am Below Poverty Line (BPL)",
+      "ownsLand": "I own agricultural land",
+      "landSize": "Land Size (hectares)"
+    },
+    "result": {
+      "eligible": "You are Eligible!",
+      "notEligible": "Not Eligible",
+      "criteria": "Eligibility Criteria",
+      "met": "Met",
+      "notMet": "Not Met",
+      "explanation": "Explanation",
+      "tryAnother": "Try Another Scheme"
+    }
+  },
+  "about": {
+    "title": "About Bharat Sahayak",
+    "architecture": {
+      "title": "Architecture",
+      "description": "Built on AWS serverless architecture for scalability and reliability"
+    },
+    "ai": {
+      "title": "AI Transparency",
+      "description": "We use Amazon Bedrock for intelligent recommendations, but all eligibility decisions are rule-based for fairness and explainability"
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "description": "We collect minimal data and automatically delete all session information after 24 hours. Your personal information is never stored permanently."
+    },
+    "bias": {
+      "title": "Bias Prevention",
+      "description": "Our rule-based eligibility engine ensures fair treatment for all users regardless of background"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "lowBandwidth": "Low Bandwidth Mode",
+    "lowBandwidthDescription": "Reduce data usage for slow connections"
+  },
+  "errors": {
+    "networkError": "Network error. Please check your connection.",
+    "serverError": "Server error. Please try again later.",
+    "audioError": "Could not access microphone. Please check permissions.",
+    "transcriptionError": "Could not transcribe audio. Please speak clearly and try again.",
+    "validationError": "Please check your input and try again.",
+    "rateLimitError": "Too many requests. Please wait a moment.",
+    "sessionExpired": "Your session has expired. Starting a new session.",
+    "unknownError": "An unexpected error occurred. Please try again."
+  },
+  "voice": {
+    "startRecording": "Start Recording",
+    "stopRecording": "Stop Recording",
+    "speakNow": "Speak now...",
+    "audioQualityLow": "Audio quality is low. Please speak louder.",
+    "playAudio": "Play Audio",
+    "stopAudio": "Stop Audio"
+  },
+  "accessibility": {
+    "skipToContent": "Skip to content",
+    "menu": "Menu",
+    "closeMenu": "Close menu",
+    "openLanguageSelector": "Select language",
+    "closeLanguageSelector": "Close language selector"
+  },
+  "session": {
+    "expiringTitle": "Session Expiring Soon",
+    "expiringMessage": "Your session will expire in {{time}}. Your data will be automatically deleted.",
+    "expiringNote": "Continue chatting to keep your session active, or clear your session now.",
+    "clearSession": "Clear Session",
+    "clearSessionConfirm": "Are you sure you want to clear your session? All conversation history will be deleted.",
+    "sessionCleared": "Session cleared successfully",
+    "dismiss": "Dismiss",
+    "dataRetention": "Data Retention",
+    "dataRetentionPolicy": "All session data is automatically deleted after 24 hours. We collect only essential information for scheme matching and do not store personal information permanently.",
+    "privacyNotice": "Privacy Notice",
+    "privacyNoticeMessage": "We respect your privacy. Your conversation data is stored temporarily for 24 hours and then automatically deleted. You can clear your session at any time."
+  }
+}

@@ -1,0 +1,531 @@
+name: CI/CD Workflow Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '20'
+
+jobs:
+  # Test 1: Validate workflow syntax and structure
+  validate-workflows:
+    name: Validate Workflow Syntax
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate YAML syntax
+        run: |
+          echo "Validating workflow YAML files..."
+          for file in .github/workflows/*.yml; do
+            echo "Checking $file"
+            python3 -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+          done
+          echo "✅ All workflow files have valid YAML syntax"
+
+      - name: Check required workflow fields
+        run: |
+          echo "Checking required workflow fields..."
+          for file in .github/workflows/*.yml; do
+            echo "Validating $file"
+            
+            # Check for 'name' field
+            if ! grep -q "^name:" "$file"; then
+              echo "❌ Missing 'name' field in $file"
+              exit 1
+            fi
+            
+            # Check for 'on' field
+            if ! grep -q "^on:" "$file"; then
+              echo "❌ Missing 'on' field in $file"
+              exit 1
+            fi
+            
+            # Check for 'jobs' field
+            if ! grep -q "^jobs:" "$file"; then
+              echo "❌ Missing 'jobs' field in $file"
+              exit 1
+            fi
+          done
+          echo "✅ All workflows have required fields"
+
+      - name: Validate job dependencies
+        run: |
+          echo "Validating job dependencies..."
+          
+          # Check backend-deploy.yml dependencies
+          if ! grep -A 5 "^  deploy-dev:" .github/workflows/backend-deploy.yml | grep -q "needs: build"; then
+            echo "❌ deploy-dev job missing 'needs: build' dependency"
+            exit 1
+          fi
+          
+          if ! grep -A 5 "^  deploy-staging:" .github/workflows/backend-deploy.yml | grep -q "needs: build"; then
+            echo "❌ deploy-staging job missing 'needs: build' dependency"
+            exit 1
+          fi
+          
+          if ! grep -A 5 "^  deploy-production:" .github/workflows/backend-deploy.yml | grep -q "needs:.*deploy-staging"; then
+            echo "❌ deploy-production job missing 'needs: deploy-staging' dependency"
+            exit 1
+          fi
+          
+          # Check frontend-deploy.yml dependencies
+          if ! grep -A 5 "^  deploy-production:" .github/workflows/frontend-deploy.yml | grep -q "needs:.*deploy-staging"; then
+            echo "❌ Frontend deploy-production job missing 'needs: deploy-staging' dependency"
+            exit 1
+          fi
+          
+          echo "✅ All job dependencies are correctly configured"
+
+  # Test 2: Validate environment configurations
+  validate-environments:
+    name: Validate Environment Configurations
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check environment files exist
+        run: |
+          echo "Checking environment configuration files..."
+          
+          if [ ! -f ".github/environments/dev.env" ]; then
+            echo "❌ Missing dev.env file"
+            exit 1
+          fi
+          
+          if [ ! -f ".github/environments/staging.env" ]; then
+            echo "❌ Missing staging.env file"
+            exit 1
+          fi
+          
+          if [ ! -f ".github/environments/production.env" ]; then
+            echo "❌ Missing production.env file"
+            exit 1
+          fi
+          
+          echo "✅ All environment files exist"
+
+      - name: Validate environment variables
+        run: |
+          echo "Validating environment variables..."
+          
+          for env_file in .github/environments/*.env; do
+            echo "Checking $env_file"
+            
+            # Check for required variables (if they exist in the file)
+            if [ -s "$env_file" ]; then
+              echo "  File has content"
+            else
+              echo "  ⚠️ Warning: $env_file is empty"
+            fi
+          done
+          
+          echo "✅ Environment files validated"
+
+      - name: Check deployment stage configuration
+        run: |
+          echo "Checking deployment stage configuration..."
+          
+          # Verify backend workflow has all three stages
+          if ! grep -q "deploy-dev:" .github/workflows/backend-deploy.yml; then
+            echo "❌ Missing dev deployment stage in backend workflow"
+            exit 1
+          fi
+          
+          if ! grep -q "deploy-staging:" .github/workflows/backend-deploy.yml; then
+            echo "❌ Missing staging deployment stage in backend workflow"
+            exit 1
+          fi
+          
+          if ! grep -q "deploy-production:" .github/workflows/backend-deploy.yml; then
+            echo "❌ Missing production deployment stage in backend workflow"
+            exit 1
+          fi
+          
+          # Verify frontend workflow has all three stages
+          if ! grep -q "deploy-dev:" .github/workflows/frontend-deploy.yml; then
+            echo "❌ Missing dev deployment stage in frontend workflow"
+            exit 1
+          fi
+          
+          if ! grep -q "deploy-staging:" .github/workflows/frontend-deploy.yml; then
+            echo "❌ Missing staging deployment stage in frontend workflow"
+            exit 1
+          fi
+          
+          if ! grep -q "deploy-production:" .github/workflows/frontend-deploy.yml; then
+            echo "❌ Missing production deployment stage in frontend workflow"
+            exit 1
+          fi
+          
+          echo "✅ All deployment stages are configured"
+
+  # Test 3: Validate error handling and rollback mechanisms
+  validate-error-handling:
+    name: Validate Error Handling
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check test job exists before deployment
+        run: |
+          echo "Checking that tests run before deployment..."
+          
+          # Backend workflow should have test job
+          if ! grep -q "^  test:" .github/workflows/backend-deploy.yml; then
+            echo "❌ Missing test job in backend workflow"
+            exit 1
+          fi
+          
+          # Frontend workflow should have lint-and-test job
+          if ! grep -q "^  lint-and-test:" .github/workflows/frontend-deploy.yml; then
+            echo "❌ Missing lint-and-test job in frontend workflow"
+            exit 1
+          fi
+          
+          echo "✅ Test jobs exist in deployment workflows"
+
+      - name: Verify build artifacts are uploaded
+        run: |
+          echo "Checking build artifact upload..."
+          
+          # Backend should upload SAM build artifacts
+          if ! grep -q "upload-artifact" .github/workflows/backend-deploy.yml; then
+            echo "❌ Backend workflow doesn't upload build artifacts"
+            exit 1
+          fi
+          
+          # Frontend should upload build artifacts
+          if ! grep -q "upload-artifact" .github/workflows/frontend-deploy.yml; then
+            echo "❌ Frontend workflow doesn't upload build artifacts"
+            exit 1
+          fi
+          
+          echo "✅ Build artifacts are uploaded"
+
+      - name: Verify artifacts are downloaded before deployment
+        run: |
+          echo "Checking artifact download before deployment..."
+          
+          # Backend deploy jobs should download artifacts
+          if ! grep -A 20 "^  deploy-dev:" .github/workflows/backend-deploy.yml | grep -q "download-artifact"; then
+            echo "❌ Backend deploy-dev doesn't download artifacts"
+            exit 1
+          fi
+          
+          # Frontend deploy jobs should download artifacts
+          if ! grep -A 20 "^  deploy-dev:" .github/workflows/frontend-deploy.yml | grep -q "download-artifact"; then
+            echo "❌ Frontend deploy-dev doesn't download artifacts"
+            exit 1
+          fi
+          
+          echo "✅ Artifacts are downloaded before deployment"
+
+      - name: Check for integration tests after deployment
+        run: |
+          echo "Checking for integration tests..."
+          
+          # Backend should run integration tests after deployment
+          if ! grep -A 50 "^  deploy-dev:" .github/workflows/backend-deploy.yml | grep -q "integration"; then
+            echo "⚠️ Warning: No integration tests found in backend deploy-dev"
+          else
+            echo "✅ Backend has integration tests"
+          fi
+          
+          # Production should have smoke tests
+          if ! grep -A 50 "^  deploy-production:" .github/workflows/backend-deploy.yml | grep -q "smoke"; then
+            echo "⚠️ Warning: No smoke tests found in backend deploy-production"
+          else
+            echo "✅ Backend has smoke tests"
+          fi
+
+  # Test 4: Validate deployment rollback capability
+  validate-rollback-capability:
+    name: Validate Rollback Capability
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check SAM deployment configuration
+        run: |
+          echo "Checking SAM deployment configuration for rollback support..."
+          
+          # SAM deploy should not use --no-fail-on-empty-changeset for safety
+          if grep -q "sam deploy" .github/workflows/backend-deploy.yml; then
+            echo "✅ SAM deploy commands found"
+            
+            # Check if --no-confirm-changeset is used (allows automation)
+            if grep "sam deploy" .github/workflows/backend-deploy.yml | grep -q "\-\-no-confirm-changeset"; then
+              echo "✅ SAM deploy uses --no-confirm-changeset for automation"
+            fi
+          else
+            echo "❌ No SAM deploy commands found"
+            exit 1
+          fi
+
+      - name: Verify CloudFormation stack naming
+        run: |
+          echo "Checking CloudFormation stack naming for version tracking..."
+          
+          # Check if stack names include environment
+          if grep -q "bharat-sahayak-dev" .github/workflows/backend-deploy.yml; then
+            echo "✅ Dev stack name includes environment"
+          fi
+          
+          if grep -q "bharat-sahayak-staging" .github/workflows/backend-deploy.yml; then
+            echo "✅ Staging stack name includes environment"
+          fi
+          
+          if grep -q "bharat-sahayak-prod" .github/workflows/backend-deploy.yml; then
+            echo "✅ Production stack name includes environment"
+          fi
+
+      - name: Check for deployment notifications
+        run: |
+          echo "Checking for deployment notifications..."
+          
+          # Production deployments should have notifications
+          if grep -A 100 "^  deploy-production:" .github/workflows/backend-deploy.yml | grep -q "Notify"; then
+            echo "✅ Backend production deployment has notifications"
+          else
+            echo "⚠️ Warning: Backend production deployment missing notifications"
+          fi
+          
+          if grep -A 100 "^  deploy-production:" .github/workflows/frontend-deploy.yml | grep -q "Notify"; then
+            echo "✅ Frontend production deployment has notifications"
+          else
+            echo "⚠️ Warning: Frontend production deployment missing notifications"
+          fi
+
+      - name: Verify manual approval for production
+        run: |
+          echo "Checking manual approval requirement for production..."
+          
+          # Production should require workflow_dispatch or specific conditions
+          if grep -A 5 "^  deploy-production:" .github/workflows/backend-deploy.yml | grep -q "workflow_dispatch"; then
+            echo "✅ Backend production requires manual trigger"
+          else
+            echo "❌ Backend production doesn't require manual approval"
+            exit 1
+          fi
+          
+          if grep -A 5 "^  deploy-production:" .github/workflows/frontend-deploy.yml | grep -q "workflow_dispatch"; then
+            echo "✅ Frontend production requires manual trigger"
+          else
+            echo "❌ Frontend production doesn't require manual approval"
+            exit 1
+          fi
+
+  # Test 5: Validate security in CI/CD pipeline
+  validate-security:
+    name: Validate CI/CD Security
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Checking for hardcoded secrets in workflows..."
+          
+          # Check for AWS credentials patterns
+          if grep -r "AKIA" .github/workflows/; then
+            echo "❌ Found potential AWS access key in workflows"
+            exit 1
+          fi
+          
+          if grep -r "aws_secret_access_key.*:" .github/workflows/ | grep -v "secrets\."; then
+            echo "❌ Found hardcoded AWS secret key"
+            exit 1
+          fi
+          
+          echo "✅ No hardcoded secrets found"
+
+      - name: Verify secrets are used from GitHub Secrets
+        run: |
+          echo "Checking that secrets are properly referenced..."
+          
+          # Check that AWS credentials use secrets
+          if ! grep -q "secrets\.AWS_ACCESS_KEY_ID" .github/workflows/backend-deploy.yml; then
+            echo "❌ Backend workflow doesn't use GitHub Secrets for AWS credentials"
+            exit 1
+          fi
+          
+          if ! grep -q "secrets\.AWS_SECRET_ACCESS_KEY" .github/workflows/backend-deploy.yml; then
+            echo "❌ Backend workflow doesn't use GitHub Secrets for AWS secret key"
+            exit 1
+          fi
+          
+          echo "✅ Secrets are properly referenced from GitHub Secrets"
+
+      - name: Check for security scanning
+        run: |
+          echo "Checking for security scanning in PR validation..."
+          
+          if grep -q "security-scan:" .github/workflows/pr-validation.yml; then
+            echo "✅ Security scanning is configured in PR validation"
+          else
+            echo "⚠️ Warning: No security scanning found in PR validation"
+          fi
+          
+          if grep -q "trivy" .github/workflows/pr-validation.yml; then
+            echo "✅ Trivy vulnerability scanner is configured"
+          else
+            echo "⚠️ Warning: Trivy scanner not found"
+          fi
+
+  # Test 6: Validate workflow triggers
+  validate-triggers:
+    name: Validate Workflow Triggers
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check backend deployment triggers
+        run: |
+          echo "Checking backend deployment triggers..."
+          
+          # Should trigger on push to main/develop
+          if ! grep -A 5 "^on:" .github/workflows/backend-deploy.yml | grep -q "push:"; then
+            echo "❌ Backend workflow missing push trigger"
+            exit 1
+          fi
+          
+          # Should trigger on PR
+          if ! grep -A 10 "^on:" .github/workflows/backend-deploy.yml | grep -q "pull_request:"; then
+            echo "❌ Backend workflow missing pull_request trigger"
+            exit 1
+          fi
+          
+          # Should have manual trigger
+          if ! grep -A 15 "^on:" .github/workflows/backend-deploy.yml | grep -q "workflow_dispatch:"; then
+            echo "❌ Backend workflow missing workflow_dispatch trigger"
+            exit 1
+          fi
+          
+          echo "✅ Backend workflow has correct triggers"
+
+      - name: Check frontend deployment triggers
+        run: |
+          echo "Checking frontend deployment triggers..."
+          
+          # Should trigger on push to main/develop
+          if ! grep -A 5 "^on:" .github/workflows/frontend-deploy.yml | grep -q "push:"; then
+            echo "❌ Frontend workflow missing push trigger"
+            exit 1
+          fi
+          
+          # Should trigger on PR
+          if ! grep -A 10 "^on:" .github/workflows/frontend-deploy.yml | grep -q "pull_request:"; then
+            echo "❌ Frontend workflow missing pull_request trigger"
+            exit 1
+          fi
+          
+          # Should have manual trigger
+          if ! grep -A 15 "^on:" .github/workflows/frontend-deploy.yml | grep -q "workflow_dispatch:"; then
+            echo "❌ Frontend workflow missing workflow_dispatch trigger"
+            exit 1
+          fi
+          
+          echo "✅ Frontend workflow has correct triggers"
+
+      - name: Check path filters
+        run: |
+          echo "Checking path filters for efficient CI/CD..."
+          
+          # Backend should only trigger on backend/infrastructure changes
+          if ! grep -A 20 "^on:" .github/workflows/backend-deploy.yml | grep -q "paths:"; then
+            echo "⚠️ Warning: Backend workflow missing path filters"
+          else
+            echo "✅ Backend workflow has path filters"
+          fi
+          
+          # Frontend should only trigger on frontend changes
+          if ! grep -A 20 "^on:" .github/workflows/frontend-deploy.yml | grep -q "paths:"; then
+            echo "⚠️ Warning: Frontend workflow missing path filters"
+          else
+            echo "✅ Frontend workflow has path filters"
+          fi
+
+  # Summary job
+  test-summary:
+    name: CI/CD Test Summary
+    runs-on: ubuntu-latest
+    needs: 
+      - validate-workflows
+      - validate-environments
+      - validate-error-handling
+      - validate-rollback-capability
+      - validate-security
+      - validate-triggers
+    if: always()
+    
+    steps:
+      - name: Generate test summary
+        run: |
+          echo "## CI/CD Workflow Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.validate-workflows.result }}" == "success" ]; then
+            echo "✅ Workflow syntax and structure validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Workflow syntax and structure validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.validate-environments.result }}" == "success" ]; then
+            echo "✅ Environment configuration validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Environment configuration validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.validate-error-handling.result }}" == "success" ]; then
+            echo "✅ Error handling validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Error handling validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.validate-rollback-capability.result }}" == "success" ]; then
+            echo "✅ Rollback capability validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Rollback capability validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.validate-security.result }}" == "success" ]; then
+            echo "✅ Security validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Security validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.validate-triggers.result }}" == "success" ]; then
+            echo "✅ Workflow trigger validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Workflow trigger validation failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "- Workflow syntax validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Job dependency validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- Error handling mechanisms" >> $GITHUB_STEP_SUMMARY
+          echo "- Rollback capability" >> $GITHUB_STEP_SUMMARY
+          echo "- Security best practices" >> $GITHUB_STEP_SUMMARY
+          echo "- Workflow triggers and filters" >> $GITHUB_STEP_SUMMARY

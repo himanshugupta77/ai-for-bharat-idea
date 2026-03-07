@@ -1,0 +1,228 @@
+{
+  "common": {
+    "appName": "भारत सहायक",
+    "loading": "लोड होत आहे...",
+    "error": "त्रुटी",
+    "retry": "पुन्हा प्रयत्न करा",
+    "close": "बंद करा",
+    "submit": "सबमिट करा",
+    "cancel": "रद्द करा",
+    "continue": "सुरू ठेवा",
+    "back": "मागे",
+    "next": "पुढे",
+    "yes": "होय",
+    "no": "नाही"
+  },
+  "landing": {
+    "title": "Bharat Sahayak",
+    "subtitle": "Your AI-Powered Welfare Assistant",
+    "description": "Discover government welfare schemes in your language with voice assistance",
+    "cta": {
+      "title": "Ready to Get Started?",
+      "subtitle": "Start your journey to discover welfare schemes that can help you and your family",
+      "button": "Start Chatting Now"
+    },
+    "badge": "Official AI Portal for Government Welfare Schemes",
+    "hero": {
+      "title1": "AI-Powered Government",
+      "title2": "Welfare Assistant",
+      "subtitle": "Find the right government schemes instantly using AI, voice support, and multilingual assistance.",
+      "startChatting": "Start Chatting",
+      "exploreSchemes": "Explore Schemes"
+    },
+    "features": {
+      "title": "Powerful AI Features",
+      "subtitle": "Everything you need to discover and apply for government welfare schemes",
+      "aiChatbot": {
+        "title": "AI Chatbot",
+        "description": "Intelligent conversational AI powered by advanced language models to answer your questions about government schemes."
+      },
+      "eligibilityChecker": {
+        "title": "Smart Eligibility Checker",
+        "description": "Quickly determine which government welfare schemes you qualify for based on your personal information."
+      },
+      "voiceAssistant": {
+        "title": "Voice Assistant",
+        "description": "Speak naturally to interact with the assistant using advanced speech recognition and text-to-speech technology."
+      },
+      "multilingual": {
+        "title": "Multilingual Support",
+        "description": "Access information in your preferred language with support for 11 Indian languages and seamless translation."
+      }
+    },
+    "schemes": {
+      "title": "Popular Government Schemes",
+      "pmKisan": {
+        "name": "PM Kisan Samman Nidhi",
+        "description": "Financial assistance of ₹6,000 per year to small and marginal farmers in three equal installments. Direct income support to help farmers meet agricultural expenses.",
+        "eligibility": "For farmers with cultivable land"
+      },
+      "ayushman": {
+        "name": "Ayushman Bharat Yojana",
+        "description": "Health insurance coverage of ₹5 lakh per family per year for secondary and tertiary care hospitalization. Covers over 1,350 medical procedures including surgeries and treatments.",
+        "eligibility": "For economically vulnerable families"
+      }
+    },
+    "aiCapabilities": {
+      "title": "AI-Powered Intelligence",
+      "bedrock": {
+        "title": "Amazon Bedrock",
+        "description": "Powered by Claude 3 for intelligent, context-aware responses and scheme recommendations."
+      },
+      "translate": {
+        "title": "Amazon Translate",
+        "description": "Seamless translation across 11 languages for truly multilingual conversations."
+      },
+      "transcribe": {
+        "title": "Amazon Transcribe",
+        "description": "Accurate speech-to-text conversion with automatic language identification."
+      },
+      "polly": {
+        "title": "Amazon Polly",
+        "description": "Natural-sounding text-to-speech with gender-neutral voices for all languages."
+      }
+    },
+    "architecture": {
+      "title": "Built on AWS Serverless",
+      "subtitle": "Transparent, scalable, and secure infrastructure powered by AWS services",
+      "learnMore": "Learn More About Our Architecture",
+      "services": {
+        "lambda": "Serverless compute",
+        "apiGateway": "REST API",
+        "dynamodb": "NoSQL database",
+        "s3": "Static hosting",
+        "cloudfront": "Global CDN",
+        "bedrock": "AI models",
+        "transcribe": "Speech-to-text",
+        "polly": "Text-to-speech",
+        "translate": "Translation",
+        "cloudwatch": "Monitoring",
+        "waf": "Security",
+        "kms": "Encryption"
+      }
+    },
+    "about": {
+      "title": "About",
+      "description": "Learn how Bharat Sahayak works"
+    }
+  },
+  "chat": {
+    "placeholder": "तुमचा संदेश टाइप करा किंवा आवाज वापरा...",
+    "send": "पाठवा",
+    "voiceInput": "आवाज इनपुट",
+    "listening": "ऐकत आहे...",
+    "processing": "प्रक्रिया करत आहे...",
+    "typing": "टाइप करत आहे...",
+    "newChat": "नवीन संवाद",
+    "clearChat": "संवाद साफ करा",
+    "noMessages": "कल्याण योजना शोधण्यासाठी संवाद सुरू करा"
+  },
+  "schemes": {
+    "title": "शिफारस केलेल्या योजना",
+    "checkEligibility": "पात्रता तपासा",
+    "viewDetails": "तपशील पहा",
+    "applyNow": "आता अर्ज करा",
+    "officialWebsite": "Official Website",
+    "eligibility": "पात्रता",
+    "benefits": "फायदे",
+    "documents": "आवश्यक कागदपत्रे",
+    "applicationSteps": "अर्ज पायऱ्या",
+    "subtitle": "Explore popular government welfare schemes and check your eligibility",
+    "filterByCategory": "Filter by Category",
+    "allCategories": "All Schemes",
+    "noSchemes": "No schemes found in this category",
+    "category": {
+      "agriculture": "Agriculture",
+      "employment": "Employment",
+      "health": "Health",
+      "housing": "Housing",
+      "welfare": "Welfare",
+      "pension": "Pension",
+      "business": "Business",
+      "education": "Education"
+    }
+  },
+  "eligibility": {
+    "title": "पात्रता तपासणी",
+    "form": {
+      "age": "वय",
+      "gender": "लिंग",
+      "male": "पुरुष",
+      "female": "स्त्री",
+      "other": "इतर",
+      "income": "वार्षिक उत्पन्न (₹)",
+      "state": "राज्य",
+      "category": "श्रेणी",
+      "general": "सामान्य",
+      "obc": "ओबीसी",
+      "sc": "एससी",
+      "st": "एसटी",
+      "occupation": "व्यवसाय",
+      "hasDisability": "अपंग व्यक्ती",
+      "isBPL": "दारिद्र्य रेषेखाली",
+      "ownsLand": "शेती जमीन मालक",
+      "landSize": "जमीन आकार (हेक्टर)"
+    },
+    "result": {
+      "eligible": "तुम्ही पात्र आहात!",
+      "notEligible": "पात्र नाही",
+      "criteria": "पात्रता निकष",
+      "met": "पूर्ण केले",
+      "notMet": "पूर्ण केले नाही",
+      "explanation": "स्पष्टीकरण"
+    }
+  },
+  "about": {
+    "title": "भारत सहायक बद्दल",
+    "architecture": {
+      "title": "आर्किटेक्चर",
+      "description": "स्केलेबिलिटी आणि विश्वसनीयतेसाठी AWS सर्व्हरलेस आर्किटेक्चरवर तयार"
+    },
+    "ai": {
+      "title": "AI पारदर्शकता",
+      "description": "आम्ही बुद्धिमान शिफारशींसाठी Amazon Bedrock वापरतो, परंतु निष्पक्षता आणि स्पष्टतेसाठी सर्व पात्रता निर्णय नियम-आधारित आहेत"
+    },
+    "privacy": {
+      "title": "गोपनीयता धोरण",
+      "description": "आम्ही किमान डेटा गोळा करतो आणि 24 तासांनंतर सर्व सत्र माहिती स्वयंचलितपणे हटवतो. तुमची वैयक्तिक माहिती कधीही कायमस्वरूपी संग्रहित केली जात नाही."
+    },
+    "bias": {
+      "title": "पूर्वाग्रह प्रतिबंध",
+      "description": "आमचे नियम-आधारित पात्रता इंजिन पार्श्वभूमीची पर्वा न करता सर्व वापरकर्त्यांसाठी निष्पक्ष वागणूक सुनिश्चित करते"
+    }
+  },
+  "settings": {
+    "title": "सेटिंग्ज",
+    "language": "भाषा",
+    "theme": "थीम",
+    "light": "हलका",
+    "dark": "गडद",
+    "lowBandwidth": "कमी बँडविड्थ मोड",
+    "lowBandwidthDescription": "मंद कनेक्शनसाठी डेटा वापर कमी करा"
+  },
+  "errors": {
+    "networkError": "नेटवर्क त्रुटी. कृपया तुमचे कनेक्शन तपासा.",
+    "serverError": "सर्व्हर त्रुटी. कृपया नंतर पुन्हा प्रयत्न करा.",
+    "audioError": "मायक्रोफोनमध्ये प्रवेश करू शकलो नाही. कृपया परवानग्या तपासा.",
+    "transcriptionError": "ऑडिओ ट्रान्सक्राइब करू शकलो नाही. कृपया स्पष्टपणे बोला आणि पुन्हा प्रयत्न करा.",
+    "validationError": "कृपया तुमचे इनपुट तपासा आणि पुन्हा प्रयत्न करा.",
+    "rateLimitError": "खूप विनंत्या. कृपया थोडा वेळ थांबा.",
+    "sessionExpired": "तुमचे सत्र संपले आहे. नवीन सत्र सुरू करत आहे.",
+    "unknownError": "एक अनपेक्षित त्रुटी आली. कृपया पुन्हा प्रयत्न करा."
+  },
+  "voice": {
+    "startRecording": "रेकॉर्डिंग सुरू करा",
+    "stopRecording": "रेकॉर्डिंग थांबवा",
+    "speakNow": "आता बोला...",
+    "audioQualityLow": "ऑडिओ गुणवत्ता कमी आहे. कृपया मोठ्याने बोला.",
+    "playAudio": "ऑडिओ प्ले करा",
+    "stopAudio": "ऑडिओ थांबवा"
+  },
+  "accessibility": {
+    "skipToContent": "सामग्रीवर जा",
+    "menu": "मेनू",
+    "closeMenu": "मेनू बंद करा",
+    "openLanguageSelector": "भाषा निवडा",
+    "closeLanguageSelector": "भाषा निवडकर्ता बंद करा"
+  }
+}

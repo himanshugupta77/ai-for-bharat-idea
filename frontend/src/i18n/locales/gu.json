@@ -1,0 +1,228 @@
+{
+  "common": {
+    "appName": "ભારત સહાયક",
+    "loading": "લોડ થઈ રહ્યું છે...",
+    "error": "ભૂલ",
+    "retry": "ફરી પ્રયાસ કરો",
+    "close": "બંધ કરો",
+    "submit": "સબમિટ કરો",
+    "cancel": "રદ કરો",
+    "continue": "ચાલુ રાખો",
+    "back": "પાછળ",
+    "next": "આગળ",
+    "yes": "હા",
+    "no": "ના"
+  },
+  "landing": {
+    "title": "Bharat Sahayak",
+    "subtitle": "Your AI-Powered Welfare Assistant",
+    "description": "Discover government welfare schemes in your language with voice assistance",
+    "cta": {
+      "title": "Ready to Get Started?",
+      "subtitle": "Start your journey to discover welfare schemes that can help you and your family",
+      "button": "Start Chatting Now"
+    },
+    "badge": "Official AI Portal for Government Welfare Schemes",
+    "hero": {
+      "title1": "AI-Powered Government",
+      "title2": "Welfare Assistant",
+      "subtitle": "Find the right government schemes instantly using AI, voice support, and multilingual assistance.",
+      "startChatting": "Start Chatting",
+      "exploreSchemes": "Explore Schemes"
+    },
+    "features": {
+      "title": "Powerful AI Features",
+      "subtitle": "Everything you need to discover and apply for government welfare schemes",
+      "aiChatbot": {
+        "title": "AI Chatbot",
+        "description": "Intelligent conversational AI powered by advanced language models to answer your questions about government schemes."
+      },
+      "eligibilityChecker": {
+        "title": "Smart Eligibility Checker",
+        "description": "Quickly determine which government welfare schemes you qualify for based on your personal information."
+      },
+      "voiceAssistant": {
+        "title": "Voice Assistant",
+        "description": "Speak naturally to interact with the assistant using advanced speech recognition and text-to-speech technology."
+      },
+      "multilingual": {
+        "title": "Multilingual Support",
+        "description": "Access information in your preferred language with support for 11 Indian languages and seamless translation."
+      }
+    },
+    "schemes": {
+      "title": "Popular Government Schemes",
+      "pmKisan": {
+        "name": "PM Kisan Samman Nidhi",
+        "description": "Financial assistance of ₹6,000 per year to small and marginal farmers in three equal installments. Direct income support to help farmers meet agricultural expenses.",
+        "eligibility": "For farmers with cultivable land"
+      },
+      "ayushman": {
+        "name": "Ayushman Bharat Yojana",
+        "description": "Health insurance coverage of ₹5 lakh per family per year for secondary and tertiary care hospitalization. Covers over 1,350 medical procedures including surgeries and treatments.",
+        "eligibility": "For economically vulnerable families"
+      }
+    },
+    "aiCapabilities": {
+      "title": "AI-Powered Intelligence",
+      "bedrock": {
+        "title": "Amazon Bedrock",
+        "description": "Powered by Claude 3 for intelligent, context-aware responses and scheme recommendations."
+      },
+      "translate": {
+        "title": "Amazon Translate",
+        "description": "Seamless translation across 11 languages for truly multilingual conversations."
+      },
+      "transcribe": {
+        "title": "Amazon Transcribe",
+        "description": "Accurate speech-to-text conversion with automatic language identification."
+      },
+      "polly": {
+        "title": "Amazon Polly",
+        "description": "Natural-sounding text-to-speech with gender-neutral voices for all languages."
+      }
+    },
+    "architecture": {
+      "title": "Built on AWS Serverless",
+      "subtitle": "Transparent, scalable, and secure infrastructure powered by AWS services",
+      "learnMore": "Learn More About Our Architecture",
+      "services": {
+        "lambda": "Serverless compute",
+        "apiGateway": "REST API",
+        "dynamodb": "NoSQL database",
+        "s3": "Static hosting",
+        "cloudfront": "Global CDN",
+        "bedrock": "AI models",
+        "transcribe": "Speech-to-text",
+        "polly": "Text-to-speech",
+        "translate": "Translation",
+        "cloudwatch": "Monitoring",
+        "waf": "Security",
+        "kms": "Encryption"
+      }
+    },
+    "about": {
+      "title": "About",
+      "description": "Learn how Bharat Sahayak works"
+    }
+  },
+  "chat": {
+    "placeholder": "તમારો સંદેશ ટાઇપ કરો અથવા વૉઇસનો ઉપયોગ કરો...",
+    "send": "મોકલો",
+    "voiceInput": "વૉઇસ ઇનપુટ",
+    "listening": "સાંભળી રહ્યું છે...",
+    "processing": "પ્રક્રિયા કરી રહ્યું છે...",
+    "typing": "ટાઇપ કરી રહ્યું છે...",
+    "newChat": "નવી ચેટ",
+    "clearChat": "ચેટ સાફ કરો",
+    "noMessages": "કલ્યાણ યોજનાઓ શોધવા માટે વાતચીત શરૂ કરો"
+  },
+  "schemes": {
+    "title": "ભલામણ કરેલ યોજનાઓ",
+    "checkEligibility": "પાત્રતા તપાસો",
+    "viewDetails": "વિગતો જુઓ",
+    "applyNow": "હમણાં અરજી કરો",
+    "officialWebsite": "Official Website",
+    "eligibility": "પાત્રતા",
+    "benefits": "લાભો",
+    "documents": "જરૂરી દસ્તાવેજો",
+    "applicationSteps": "અરજી પગલાં",
+    "subtitle": "Explore popular government welfare schemes and check your eligibility",
+    "filterByCategory": "Filter by Category",
+    "allCategories": "All Schemes",
+    "noSchemes": "No schemes found in this category",
+    "category": {
+      "agriculture": "Agriculture",
+      "employment": "Employment",
+      "health": "Health",
+      "housing": "Housing",
+      "welfare": "Welfare",
+      "pension": "Pension",
+      "business": "Business",
+      "education": "Education"
+    }
+  },
+  "eligibility": {
+    "title": "પાત્રતા તપાસ",
+    "form": {
+      "age": "ઉંમર",
+      "gender": "લિંગ",
+      "male": "પુરુષ",
+      "female": "સ્ત્રી",
+      "other": "અન્ય",
+      "income": "વાર્ષિક આવક (₹)",
+      "state": "રાજ્ય",
+      "category": "શ્રેણી",
+      "general": "સામાન્ય",
+      "obc": "ઓબીસી",
+      "sc": "એસસી",
+      "st": "એસટી",
+      "occupation": "વ્યવસાય",
+      "hasDisability": "વિકલાંગ વ્યક્તિ",
+      "isBPL": "ગરીબી રેખા નીચે",
+      "ownsLand": "ખેતી જમીન માલિક",
+      "landSize": "જમીન કદ (હેક્ટર)"
+    },
+    "result": {
+      "eligible": "તમે પાત્ર છો!",
+      "notEligible": "પાત્ર નથી",
+      "criteria": "પાત્રતા માપદંડ",
+      "met": "પૂર્ણ થયું",
+      "notMet": "પૂર્ણ થયું નથી",
+      "explanation": "સમજૂતી"
+    }
+  },
+  "about": {
+    "title": "ભારત સહાયક વિશે",
+    "architecture": {
+      "title": "આર્કિટેક્ચર",
+      "description": "સ્કેલેબિલિટી અને વિશ્વસનીયતા માટે AWS સર્વરલેસ આર્કિટેક્ચર પર બનાવેલ"
+    },
+    "ai": {
+      "title": "AI પારદર્શિતા",
+      "description": "અમે બુદ્ધિશાળી ભલામણો માટે Amazon Bedrock નો ઉપયોગ કરીએ છીએ, પરંતુ ન્યાયીપણા અને સમજૂતી માટે બધા પાત્રતા નિર્ણયો નિયમ-આધારિત છે"
+    },
+    "privacy": {
+      "title": "ગોપનીયતા નીતિ",
+      "description": "અમે ન્યૂનતમ ડેટા એકત્રિત કરીએ છીએ અને 24 કલાક પછી બધી સત્ર માહિતી આપમેળે કાઢી નાખીએ છીએ. તમારી વ્યક્તિગત માહિતી ક્યારેય કાયમી રીતે સંગ્રહિત થતી નથી."
+    },
+    "bias": {
+      "title": "પૂર્વગ્રહ નિવારણ",
+      "description": "અમારું નિયમ-આધારિત પાત્રતા એન્જિન પૃષ્ઠભૂમિને ધ્યાનમાં લીધા વિના બધા વપરાશકર્તાઓ માટે ન્યાયી વર્તન સુનિશ્ચિત કરે છે"
+    }
+  },
+  "settings": {
+    "title": "સેટિંગ્સ",
+    "language": "ભાષા",
+    "theme": "થીમ",
+    "light": "પ્રકાશ",
+    "dark": "અંધારું",
+    "lowBandwidth": "ઓછી બેન્ડવિડ્થ મોડ",
+    "lowBandwidthDescription": "ધીમા કનેક્શન માટે ડેટા વપરાશ ઘટાડો"
+  },
+  "errors": {
+    "networkError": "નેટવર્ક ભૂલ. કૃપા કરીને તમારું કનેક્શન તપાસો.",
+    "serverError": "સર્વર ભૂલ. કૃપા કરીને પછીથી ફરી પ્રયાસ કરો.",
+    "audioError": "માઇક્રોફોન ઍક્સેસ કરી શક્યા નહીં. કૃપા કરીને પરવાનગીઓ તપાસો.",
+    "transcriptionError": "ઑડિયો ટ્રાન્સક્રાઇબ કરી શક્યા નહીં. કૃપા કરીને સ્પષ્ટપણે બોલો અને ફરી પ્રયાસ કરો.",
+    "validationError": "કૃપા કરીને તમારું ઇનપુટ તપાસો અને ફરી પ્રયાસ કરો.",
+    "rateLimitError": "ઘણી વિનંતીઓ. કૃપા કરીને થોડો સમય રાહ જુઓ.",
+    "sessionExpired": "તમારું સત્ર સમાપ્ત થયું છે. નવું સત્ર શરૂ કરી રહ્યું છે.",
+    "unknownError": "અનપેક્ષિત ભૂલ આવી. કૃપા કરીને ફરી પ્રયાસ કરો."
+  },
+  "voice": {
+    "startRecording": "રેકોર્ડિંગ શરૂ કરો",
+    "stopRecording": "રેકોર્ડિંગ બંધ કરો",
+    "speakNow": "હવે બોલો...",
+    "audioQualityLow": "ઑડિયો ગુણવત્તા ઓછી છે. કૃપા કરીને મોટેથી બોલો.",
+    "playAudio": "ઑડિયો ચલાવો",
+    "stopAudio": "ઑડિયો બંધ કરો"
+  },
+  "accessibility": {
+    "skipToContent": "સામગ્રી પર જાઓ",
+    "menu": "મેનુ",
+    "closeMenu": "મેનુ બંધ કરો",
+    "openLanguageSelector": "ભાષા પસંદ કરો",
+    "closeLanguageSelector": "ભાષા પસંદગીકર્તા બંધ કરો"
+  }
+}

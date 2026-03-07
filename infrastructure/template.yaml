@@ -1,0 +1,1405 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Bharat Sahayak AI Assistant - Serverless Infrastructure
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+  
+  DomainName:
+    Type: String
+    Default: bharatsahayak.in
+    Description: Domain name for the application
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 1024
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        LOG_LEVEL: !If [IsProd, INFO, DEBUG]
+        DYNAMODB_TABLE: !Ref DataTable
+        BEDROCK_MODEL_ID: anthropic.claude-3-sonnet-20240229
+        S3_TEMP_BUCKET: !Ref TempBucket
+    Tracing: Active
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+  IsNotProd: !Not [!Equals [!Ref Environment, prod]]
+
+Resources:
+  # ==================== API Gateway ====================
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: BharatSahayak
+
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub bharat-sahayak-api-${Environment}
+      StageName: !Ref Environment
+      Cors:
+        AllowOrigin: !Sub "'https://${DomainName}'"
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Session-Id,Authorization'"
+        MaxAge: "'3600'"
+      TracingEnabled: true
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '$context.requestId $context.extendedRequestId $context.identity.sourceIp $context.requestTime $context.httpMethod $context.routeKey $context.status $context.protocol $context.responseLength $context.error.message'
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 500
+          ThrottlingRateLimit: 1000
+      Auth:
+        ResourcePolicy:
+          CustomStatements:
+            - Effect: Deny
+              Principal: '*'
+              Action: 'execute-api:Invoke'
+              Resource: 'execute-api:/*'
+              Condition:
+                Bool:
+                  'aws:SecureTransport': 'false'
+      GatewayResponses:
+        BAD_REQUEST_BODY:
+          StatusCode: 400
+          ResponseTemplates:
+            application/json: '{"error": "ValidationError", "message": "Invalid request format. Please check your request body."}'
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'https://${DomainName}'"
+        THROTTLED:
+          StatusCode: 429
+          ResponseTemplates:
+            application/json: '{"error": "RateLimitExceeded", "message": "Too many requests. Please try again later.", "retryAfter": 60}'
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'https://${DomainName}'"
+              Retry-After: "'60'"
+        DEFAULT_5XX:
+          StatusCode: 500
+          ResponseTemplates:
+            application/json: '{"error": "InternalError", "message": "An error occurred while processing your request. Please try again."}'
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'https://${DomainName}'"
+        DEFAULT_4XX:
+          StatusCode: 400
+          ResponseTemplates:
+            application/json: '{"error": "BadRequest", "message": "Invalid request. Please check your request and try again."}'
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'https://${DomainName}'"
+      Models:
+        ChatRequest:
+          type: object
+          required:
+            - message
+          properties:
+            message:
+              type: string
+              minLength: 1
+              maxLength: 1000
+            language:
+              type: string
+              enum: [en, hi, mr, ta, te, bn, gu, kn, ml, pa, or]
+        VoiceToTextRequest:
+          type: object
+          required:
+            - audioData
+            - format
+          properties:
+            audioData:
+              type: string
+            format:
+              type: string
+              enum: [webm, mp3, wav]
+        TextToSpeechRequest:
+          type: object
+          required:
+            - text
+            - language
+          properties:
+            text:
+              type: string
+              minLength: 1
+              maxLength: 3000
+            language:
+              type: string
+              enum: [en, hi, mr, ta, te, bn, gu, kn, ml, pa, or]
+            lowBandwidth:
+              type: boolean
+        EligibilityRequest:
+          type: object
+          required:
+            - schemeId
+            - userInfo
+          properties:
+            schemeId:
+              type: string
+            userInfo:
+              type: object
+
+  # ==================== Lambda Functions ====================
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub bharat-sahayak-chat-${Environment}
+      CodeUri: ../backend/src/chat/
+      Handler: handler.lambda_handler
+      Description: Process text-based chat queries with AI
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DataTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-*'
+            - Effect: Allow
+              Action:
+                - translate:TranslateText
+              Resource: '*'
+      Events:
+        ChatApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /chat
+            Method: POST
+            RequestModel:
+              Model: ChatRequest
+              Required: true
+      # Provisioned concurrency for production to reduce cold starts
+      AutoPublishAlias: live
+      ProvisionedConcurrencyConfig:
+        ProvisionedConcurrentExecutions: !If [IsProd, 2, 0]
+
+  VoiceToTextFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub bharat-sahayak-voice-to-text-${Environment}
+      CodeUri: ../backend/src/voice/
+      Handler: voice_to_text_handler.lambda_handler
+      Description: Transcribe audio to text using Amazon Transcribe
+      Timeout: 35
+      MemorySize: 512
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref TempBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - transcribe:StartTranscriptionJob
+                - transcribe:GetTranscriptionJob
+              Resource: '*'
+      Events:
+        VoiceToTextApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /voice-to-text
+            Method: POST
+            RequestModel:
+              Model: VoiceToTextRequest
+              Required: true
+
+  TextToSpeechFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub bharat-sahayak-text-to-speech-${Environment}
+      CodeUri: ../backend/src/voice/
+      Handler: text_to_speech_handler.lambda_handler
+      Description: Generate speech audio using Amazon Polly
+      Timeout: 10
+      MemorySize: 512
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - polly:SynthesizeSpeech
+              Resource: '*'
+      Events:
+        TextToSpeechApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /text-to-speech
+            Method: POST
+            RequestModel:
+              Model: TextToSpeechRequest
+              Required: true
+
+  EligibilityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub bharat-sahayak-eligibility-${Environment}
+      CodeUri: ../backend/src/eligibility/
+      Handler: handler.lambda_handler
+      Description: Check scheme eligibility using rule-based logic
+      Timeout: 5
+      MemorySize: 256
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DataTable
+      Events:
+        EligibilityApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /eligibility-check
+            Method: POST
+            RequestModel:
+              Model: EligibilityRequest
+              Required: true
+
+  SchemesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub bharat-sahayak-schemes-${Environment}
+      CodeUri: ../backend/src/schemes/
+      Handler: handler.lambda_handler
+      Description: Retrieve scheme information
+      Timeout: 5
+      MemorySize: 256
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DataTable
+      Events:
+        ListSchemesApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /schemes
+            Method: GET
+        GetSchemeApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /schemes/{schemeId}
+            Method: GET
+
+  # ==================== DynamoDB Table ====================
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub bharat-sahayak-data-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: CategoryIndex
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProd, true, false]
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: !Ref KMSKey
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: BharatSahayak
+
+  # ==================== S3 Buckets ====================
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub bharat-sahayak-frontend-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyId: !Ref KMSKey
+            BucketKeyEnabled: true
+      VersioningConfiguration:
+        Status: !If [IsProd, Enabled, Suspended]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: BharatSahayak
+
+  TempBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub bharat-sahayak-temp-${Environment}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfter1Hour
+            Status: Enabled
+            ExpirationInDays: 1
+            NoncurrentVersionExpirationInDays: 1
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyId: !Ref KMSKey
+            BucketKeyEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: BharatSahayak
+
+  TempBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TempBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt TempBucket.Arn
+              - !Sub '${TempBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+
+  # ==================== CloudFront ====================
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'OAI for Bharat Sahayak ${Environment}'
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOAI.S3CanonicalUserId
+            Action: 's3:GetObject'
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt FrontendBucket.Arn
+              - !Sub '${FrontendBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+
+  # Custom cache policy for static assets (1 year)
+  StaticAssetsCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub bharat-sahayak-static-assets-${Environment}
+        Comment: Cache policy for static assets with 1 year TTL
+        DefaultTTL: 31536000  # 1 year
+        MaxTTL: 31536000  # 1 year
+        MinTTL: 31536000  # 1 year
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          QueryStringsConfig:
+            QueryStringBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          CookiesConfig:
+            CookieBehavior: none
+
+  # Custom cache policy for API responses
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub bharat-sahayak-api-${Environment}
+        Comment: Cache policy for API responses with custom TTLs
+        DefaultTTL: 3600  # 1 hour default
+        MaxTTL: 86400  # 24 hours max
+        MinTTL: 0  # No minimum
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          QueryStringsConfig:
+            QueryStringBehavior: all
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - X-Session-Id
+              - Accept-Language
+          CookiesConfig:
+            CookieBehavior: none
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub 'Bharat Sahayak ${Environment} Distribution'
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOAI}'
+            # Add custom headers for cache control
+            OriginCustomHeaders:
+              - HeaderName: Cache-Control
+                HeaderValue: public, max-age=31536000, immutable
+          # API Gateway origin for API caching
+          - Id: ApiOrigin
+            DomainName: !Sub '${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
+            OriginPath: !Sub '/${Environment}'
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: !Ref StaticAssetsCachePolicy
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+        # Additional cache behaviors for different asset types
+        CacheBehaviors:
+          # Cache static JS/CSS with 1 year TTL
+          - PathPattern: 'assets/js/*'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref StaticAssetsCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          - PathPattern: 'assets/css/*'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref StaticAssetsCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          # Cache images with 1 year TTL
+          - PathPattern: 'assets/images/*'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref StaticAssetsCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          # Cache fonts with 1 year TTL
+          - PathPattern: 'assets/fonts/*'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref StaticAssetsCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          # API caching for schemes list (1 hour)
+          - PathPattern: 'schemes'
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref ApiCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          # API caching for scheme details (24 hours)
+          - PathPattern: 'schemes/*'
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: !Ref ApiCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        PriceClass: PriceClass_100
+        WebACLId: !GetAtt WebACL.Arn
+        Tags:
+          - Key: Environment
+            Value: !Ref Environment
+          - Key: Application
+            Value: BharatSahayak
+
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub bharat-sahayak-security-headers-${Environment}
+        Comment: Security headers for Bharat Sahayak application
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 63072000  # 2 years
+            IncludeSubdomains: true
+            Preload: true
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          XSSProtection:
+            ModeBlock: true
+            Protection: true
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.amazonaws.com; media-src 'self' blob: data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+            Override: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Permissions-Policy
+              Value: "geolocation=(), microphone=(self), camera=(), payment=(), usb=()"
+              Override: true
+            - Header: X-Content-Type-Options
+              Value: "nosniff"
+              Override: true
+
+  # ==================== AWS WAF ====================
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub bharat-sahayak-waf-${Environment}
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      Rules:
+        - Name: RateLimitRule
+          Priority: 1
+          Statement:
+            RateBasedStatement:
+              Limit: 100
+              AggregateKeyType: IP
+          Action:
+            Block:
+              CustomResponse:
+                ResponseCode: 429
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitRule
+        
+        - Name: GeoBlockingRule
+          Priority: 2
+          Statement:
+            NotStatement:
+              Statement:
+                GeoMatchStatement:
+                  CountryCodes:
+                    - IN
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: GeoBlockingRule
+        
+        - Name: SQLInjectionRule
+          Priority: 3
+          Statement:
+            SqliMatchStatement:
+              FieldToMatch:
+                Body:
+                  OversizeHandling: CONTINUE
+              TextTransformations:
+                - Priority: 0
+                  Type: URL_DECODE
+                - Priority: 1
+                  Type: HTML_ENTITY_DECODE
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: SQLInjectionRule
+        
+        - Name: XSSRule
+          Priority: 4
+          Statement:
+            XssMatchStatement:
+              FieldToMatch:
+                Body:
+                  OversizeHandling: CONTINUE
+              TextTransformations:
+                - Priority: 0
+                  Type: URL_DECODE
+                - Priority: 1
+                  Type: HTML_ENTITY_DECODE
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: XSSRule
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub bharat-sahayak-waf-${Environment}
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: BharatSahayak
+
+  # ==================== KMS Key ====================
+  KMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'KMS key for Bharat Sahayak ${Environment}'
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow Lambda to use the key
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:DescribeKey'
+            Resource: '*'
+          - Sid: Allow DynamoDB to use the key
+            Effect: Allow
+            Principal:
+              Service: dynamodb.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:Encrypt'
+              - 'kms:DescribeKey'
+              - 'kms:CreateGrant'
+            Resource: '*'
+          - Sid: Allow S3 to use the key
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:Encrypt'
+              - 'kms:GenerateDataKey'
+              - 'kms:DescribeKey'
+            Resource: '*'
+          - Sid: Allow CloudWatch Logs to use the key
+            Effect: Allow
+            Principal:
+              Service: !Sub 'logs.${AWS::Region}.amazonaws.com'
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:Encrypt'
+              - 'kms:GenerateDataKey'
+              - 'kms:DescribeKey'
+              - 'kms:CreateGrant'
+            Resource: '*'
+            Condition:
+              ArnLike:
+                'kms:EncryptionContext:aws:logs:arn': !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: BharatSahayak
+
+  KMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/bharat-sahayak-${Environment}'
+      TargetKeyId: !Ref KMSKey
+
+  # ==================== CloudWatch Log Groups ====================
+  ChatFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/bharat-sahayak-chat-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+      KmsKeyId: !GetAtt KMSKey.Arn
+
+  VoiceToTextFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/bharat-sahayak-voice-to-text-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+      KmsKeyId: !GetAtt KMSKey.Arn
+
+  TextToSpeechFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/bharat-sahayak-text-to-speech-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+      KmsKeyId: !GetAtt KMSKey.Arn
+
+  EligibilityFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/bharat-sahayak-eligibility-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+      KmsKeyId: !GetAtt KMSKey.Arn
+
+  SchemesFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/bharat-sahayak-schemes-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+      KmsKeyId: !GetAtt KMSKey.Arn
+
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/bharat-sahayak-${Environment}'
+      RetentionInDays: !If [IsProd, 30, 7]
+
+  # ==================== CloudWatch Alarms ====================
+  
+  # API Gateway 5xx Errors Alarm
+  ApiGateway5xxErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-ApiGateway-5xxErrors'
+      AlarmDescription: Alert when API Gateway 5xx errors exceed 10 in 5 minutes
+      MetricName: 5XXError
+      Namespace: AWS/ApiGateway
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Sub 'bharat-sahayak-api-${Environment}'
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Errors Alarm (Chat Function)
+  ChatFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-ChatFunction-Errors'
+      AlarmDescription: Alert when Chat Lambda errors exceed 5 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ChatFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Errors Alarm (Voice to Text Function)
+  VoiceToTextFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-VoiceToTextFunction-Errors'
+      AlarmDescription: Alert when Voice-to-Text Lambda errors exceed 5 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VoiceToTextFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Errors Alarm (Text to Speech Function)
+  TextToSpeechFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-TextToSpeechFunction-Errors'
+      AlarmDescription: Alert when Text-to-Speech Lambda errors exceed 5 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TextToSpeechFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Errors Alarm (Eligibility Function)
+  EligibilityFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-EligibilityFunction-Errors'
+      AlarmDescription: Alert when Eligibility Lambda errors exceed 5 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref EligibilityFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Errors Alarm (Schemes Function)
+  SchemesFunctionErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-SchemesFunction-Errors'
+      AlarmDescription: Alert when Schemes Lambda errors exceed 5 in 5 minutes
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SchemesFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Duration Alarm (Chat Function - 80% of 30s timeout = 25s = 25000ms)
+  ChatFunctionDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-ChatFunction-HighDuration'
+      AlarmDescription: Alert when Chat Lambda duration exceeds 25 seconds (80% of timeout)
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 25000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ChatFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # Lambda Duration Alarm (Voice to Text Function - 80% of 35s timeout = 28s = 28000ms)
+  VoiceToTextFunctionDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-VoiceToTextFunction-HighDuration'
+      AlarmDescription: Alert when Voice-to-Text Lambda duration exceeds 28 seconds (80% of timeout)
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 28000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref VoiceToTextFunction
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # DynamoDB Throttling Alarm
+  DynamoDBThrottlingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-DynamoDB-Throttling'
+      AlarmDescription: Alert when DynamoDB throttled requests are detected
+      MetricName: ThrottledRequests
+      Namespace: AWS/DynamoDB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref DataTable
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+  
+  # DynamoDB User Errors Alarm
+  DynamoDBUserErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-DynamoDB-UserErrors'
+      AlarmDescription: Alert when DynamoDB user errors exceed 10 in 5 minutes
+      MetricName: UserErrors
+      Namespace: AWS/DynamoDB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TableName
+          Value: !Ref DataTable
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !If [IsProd, !Ref SNSTopic, !Ref AWS::NoValue]
+
+  HighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-HighErrorRate'
+      AlarmDescription: Alert when Lambda error rate exceeds 5%
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SNSTopic
+
+  HighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: IsProd
+    Properties:
+      AlarmName: !Sub 'BharatSahayak-${Environment}-HighLatency'
+      AlarmDescription: Alert when p95 latency exceeds 10 seconds
+      Metrics:
+        - Id: m1
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: AWS/Lambda
+              MetricName: Duration
+            Period: 300
+            Stat: p95
+        - Id: e1
+          Expression: m1 / 1000
+          ReturnData: true
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopic
+
+  # ==================== SNS Topic for Alarms ====================
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Condition: IsProd
+    Properties:
+      TopicName: !Sub 'bharat-sahayak-alarms-${Environment}'
+      DisplayName: Bharat Sahayak Alarms
+      KmsMasterKeyId: !Ref KMSKey
+
+  # ==================== CloudWatch Dashboards ====================
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'BharatSahayak-${Environment}-Monitoring'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/ApiGateway", "Count", {"stat": "Sum", "label": "Total Requests"}],
+                  [".", "4XXError", {"stat": "Sum", "label": "4XX Errors"}],
+                  [".", "5XXError", {"stat": "Sum", "label": "5XX Errors"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "API Gateway - Request Count & Errors",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "label": "Count"
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/ApiGateway", "Latency", {"stat": "Average", "label": "Average Latency"}],
+                  ["...", {"stat": "p95", "label": "P95 Latency"}],
+                  ["...", {"stat": "p99", "label": "P99 Latency"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "API Gateway - Latency",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "label": "Milliseconds"
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", {"stat": "Sum"}],
+                  [".", "Errors", {"stat": "Sum"}],
+                  [".", "Throttles", {"stat": "Sum"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda - Invocations, Errors & Throttles",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", {"stat": "Average", "label": "Average Duration"}],
+                  ["...", {"stat": "p95", "label": "P95 Duration"}],
+                  ["...", {"stat": "Maximum", "label": "Max Duration"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda - Duration",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "label": "Milliseconds"
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "ConcurrentExecutions", {"stat": "Maximum", "label": "Concurrent Executions"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda - Concurrent Executions",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", {"stat": "Sum"}],
+                  [".", "ConsumedWriteCapacityUnits", {"stat": "Sum"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "DynamoDB - Consumed Capacity",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "UserErrors", {"stat": "Sum"}],
+                  [".", "SystemErrors", {"stat": "Sum"}],
+                  [".", "ThrottledRequests", {"stat": "Sum"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "DynamoDB - Errors & Throttles",
+                "period": 300
+              }
+            },
+            {
+              "type": "log",
+              "properties": {
+                "query": "SOURCE '/aws/lambda/bharat-sahayak-chat-${Environment}'\n| fields @timestamp, inputTokens, outputTokens, totalTokens\n| filter metricType = 'tokenUsage'\n| stats sum(inputTokens) as TotalInput, sum(outputTokens) as TotalOutput, sum(totalTokens) as Total by bin(5m)",
+                "region": "${AWS::Region}",
+                "title": "Bedrock - Token Usage (5min intervals)",
+                "stacked": false
+              }
+            },
+            {
+              "type": "log",
+              "properties": {
+                "query": "SOURCE '/aws/lambda/bharat-sahayak-chat-${Environment}'\n| fields @timestamp, durationMs, operation\n| filter metricType = 'apiCall' and service = 'bedrock'\n| stats avg(durationMs) as AvgLatency, max(durationMs) as MaxLatency, count() as Calls by bin(5m)",
+                "region": "${AWS::Region}",
+                "title": "Bedrock - API Call Performance",
+                "stacked": false
+              }
+            },
+            {
+              "type": "log",
+              "properties": {
+                "query": "SOURCE '/aws/lambda/bharat-sahayak-chat-${Environment}'\n| SOURCE '/aws/lambda/bharat-sahayak-voice-to-text-${Environment}'\n| SOURCE '/aws/lambda/bharat-sahayak-text-to-speech-${Environment}'\n| SOURCE '/aws/lambda/bharat-sahayak-eligibility-${Environment}'\n| SOURCE '/aws/lambda/bharat-sahayak-schemes-${Environment}'\n| fields @timestamp, level, message, correlationId, requestId\n| filter level = 'ERROR'\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Recent Errors (Last 20)",
+                "stacked": false
+              }
+            }
+          ]
+        }
+
+  LambdaMetricsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'BharatSahayak-${Environment}-Lambda-Details'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", {"stat": "Sum"}, {"dimensions": {"FunctionName": "bharat-sahayak-chat-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-voice-to-text-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-text-to-speech-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-eligibility-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-schemes-${Environment}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Invocations by Function",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Errors", {"stat": "Sum"}, {"dimensions": {"FunctionName": "bharat-sahayak-chat-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-voice-to-text-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-text-to-speech-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-eligibility-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-schemes-${Environment}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Errors by Function",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", {"stat": "Average"}, {"dimensions": {"FunctionName": "bharat-sahayak-chat-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-voice-to-text-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-text-to-speech-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-eligibility-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-schemes-${Environment}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Duration by Function (Average)",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "label": "Milliseconds"
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Throttles", {"stat": "Sum"}, {"dimensions": {"FunctionName": "bharat-sahayak-chat-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-voice-to-text-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-text-to-speech-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-eligibility-${Environment}"}}],
+                  ["...", {"dimensions": {"FunctionName": "bharat-sahayak-schemes-${Environment}"}}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Throttles by Function",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiEndpoint'
+
+  CloudFrontURL:
+    Description: CloudFront distribution URL
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontURL'
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  DynamoDBTableName:
+    Description: DynamoDB table name
+    Value: !Ref DataTable
+    Export:
+      Name: !Sub '${AWS::StackName}-DynamoDBTable'
+
+  FrontendBucketName:
+    Description: S3 bucket for frontend hosting
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucket'
+
+  TempBucketName:
+    Description: S3 bucket for temporary audio storage
+    Value: !Ref TempBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-TempBucket'
+
+  KMSKeyId:
+    Description: KMS key ID for encryption
+    Value: !Ref KMSKey
+    Export:
+      Name: !Sub '${AWS::StackName}-KMSKey'
+
+  WebACLArn:
+    Description: WAF Web ACL ARN
+    Value: !GetAtt WebACL.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-WebACLArn'

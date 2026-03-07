@@ -1,0 +1,1 @@
+"""Schemes API Lambda function."""
